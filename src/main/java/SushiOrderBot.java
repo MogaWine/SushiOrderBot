@@ -1,13 +1,11 @@
+import Utils.CustomMapComparator;
 import org.apache.commons.lang3.StringUtils;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Pattern;
 
 public class SushiOrderBot extends TelegramLongPollingBot {
@@ -18,9 +16,9 @@ public class SushiOrderBot extends TelegramLongPollingBot {
     private static final String BOT_NAME = "SushiOrderBot";
     private static final String BOT_TOKEN = "871656793:AAEND2Y809PBlWI6oqEMlVeLwaR-uJHeEzQ";
 
-    private static final String MESSAGE_START = "Ciao, sono SushiOrderBot \uD83C\uDF63. \n Ti aiuterò a prendere le ordinazioni! Mettiti d'accordo con gli altri commensali e inserite lo stesso numero di Sessione per iniziare!";
-    private static final String MESSAGE_SESSIONE = "Perfetto, ti sei unito alla sessione. Ora puoi iniziare ad inviarmi i piatti che vuoi ordinare. Se ne vuoi più di uno dello stesso tipo, mandamelo più volte! \n Quando hai finito, utilizza il comando \"fine\"";
-    private static final String MESSAGE_ATTENDI = "Questa è la tua ordinazione, attendi che tutti abbiano concluso! \n Per controllare lo stato delle ordinazioni, utilizza \"/statoSessione\"";
+    private static final String MESSAGE_START = "Ciao, sono SushiOrderBot \uD83C\uDF63. \nTi aiuterò a prendere le ordinazioni! Mettiti d'accordo con gli altri commensali e inserite lo stesso numero di Sessione per iniziare!";
+    private static final String MESSAGE_SESSIONE = "Perfetto, ti sei unito alla sessione. Ora puoi iniziare ad inviarmi i piatti che vuoi ordinare. Se ne vuoi più di uno dello stesso tipo, mandamelo più volte! \nQuando hai finito, utilizza il comando \"fine\"";
+    private static final String MESSAGE_ATTENDI = "Questa è la tua ordinazione, attendi che tutti abbiano concluso! \nPer controllare lo stato delle ordinazioni, utilizza \"/statoSessione\"";
 
 
     private static final String MESSAGE_HELP = "";
@@ -44,7 +42,7 @@ public class SushiOrderBot extends TelegramLongPollingBot {
             } else if (statoAttuale == Stati.sessione && StringUtils.isNumeric(message)) {
                 insertSessione(message, chatId, nickname);
             } else if (statoAttuale == Stati.ordine && (StringUtils.isNumeric(message) || Pattern.matches("\\d*[a-z]", message))) {
-                insertOrdini(message, chatId);
+                insertOrdini(message);
             } else if (statoAttuale == Stati.ordine && message.equals("/fine")) {
                 comandoFine(chatId);
             }
@@ -62,11 +60,13 @@ public class SushiOrderBot extends TelegramLongPollingBot {
                 ordine.setPiatti(piatti);
             }
         }
-        sendMessage(MESSAGE_ATTENDI,chatId);
+
+        sendOrderList(piatti, chatId);
+        sendMessage(MESSAGE_ATTENDI, chatId);
     }
 
-    private void insertOrdini(String message, long chatId) {
-
+    private void insertOrdini(String message) {
+        piatti.add(message);
     }
 
     private void comandoStart(long chatId) {
@@ -90,12 +90,36 @@ public class SushiOrderBot extends TelegramLongPollingBot {
             nuovaSessione.setIdSessione(idSessione);
             nuovaSessione.setOrdini(new ArrayList());
             nuovaSessione.getOrdini().add(nuovoOrdine);
+            sessioniAttive.put(idSessione, nuovaSessione);
             //ora l'ordine è registrato, devo ricordarmi di aggiornarlo quando ho terminato l'ordinazione
         }
 
         //TODO controllare se già esistente, non so
         sessioniInCorso.put(chatId, idSessione);
         sendMessage(MESSAGE_SESSIONE, chatId);
+    }
+
+    private void sendOrderList(List<String> piatti, long chatId) {
+        String response = "";
+
+        Map<String, Integer> ordiniFinali = new TreeMap<String, Integer>();
+        for (String piatto : piatti) {
+            if (ordiniFinali.containsKey(piatto)) {
+                Integer valore = ordiniFinali.get(piatto) + 1;
+                ordiniFinali.put(piatto, valore);
+            } else {
+                ordiniFinali.put(piatto, 1);
+            }
+        }
+
+        TreeMap<String, Integer> ordiniOrdinati = new TreeMap<String, Integer>(new CustomMapComparator());
+        ordiniOrdinati.putAll(ordiniFinali);
+
+        for (Map.Entry<String, Integer> entry : ordiniOrdinati.entrySet()) {
+            response = response + "piatto: " + entry.getKey() + " " + " n° " + entry.getValue() + "\n";
+        }
+
+        sendMessage(response, chatId);
     }
 
     private Ordine creaOrdine(long chatId, String nickname) {
