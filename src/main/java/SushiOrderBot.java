@@ -6,12 +6,15 @@ import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 public class SushiOrderBot extends TelegramLongPollingBot {
 
-    public static Map<Long, Sessione> sessioniAttive = new HashMap<Long, Sessione>();
-    public static Map<Long, Long> sessioniInCorso = new HashMap<Long, Long>();
+    private static Map<Long, Sessione> sessioniAttive = new ConcurrentHashMap<Long, Sessione>();
+    private static Map<Long, Long> sessioniInCorso = new ConcurrentHashMap<Long, Long>();
+    private static Map<Long, Stati> statiPerChat = new ConcurrentHashMap<Long, Stati>();
+    private static Map<Long, List<String>> piattiPerChat = new ConcurrentHashMap<Long, List<String>>();
 
     private static final String BOT_NAME = "SushiOrderBot";
     private static final String BOT_TOKEN = "871656793:AAEND2Y809PBlWI6oqEMlVeLwaR-uJHeEzQ";
@@ -19,63 +22,86 @@ public class SushiOrderBot extends TelegramLongPollingBot {
     private static final String MESSAGE_START = "Ciao, sono SushiOrderBot \uD83C\uDF63. \nTi aiuterò a prendere le ordinazioni! Mettiti d'accordo con gli altri commensali e inserite lo stesso numero di Sessione per iniziare!";
     private static final String MESSAGE_SESSIONE = "Perfetto, ti sei unito alla sessione. Ora puoi iniziare ad inviarmi i piatti che vuoi ordinare. Se ne vuoi più di uno dello stesso tipo, mandamelo più volte! \nQuando hai finito, utilizza il comando \"fine\"";
     private static final String MESSAGE_ATTENDI = "Questa è la tua ordinazione, attendi che tutti abbiano concluso! \nPer controllare lo stato delle ordinazioni, utilizza \"/statoSessione\"";
-
+    private static final String MESSAGE_ALL_READY = "Tutti gli utenti sono pronti!\nUtilizza il comando \"/terminaSessione\" per concludere l'ordinazione!";
+    private static final String MESSAGE_ANNULLA = "Ordine correttamente eliminato.\nSe vuoi ordinare del Sushi\uD83C\uDF63 utilizza il comando \"/start\"!";
 
     private static final String MESSAGE_HELP = "";
     private static final String MESSAGE_ERROR = "Utilizza prima un comando! utilizza \"/start\" ";
     private static final String MESSAGE_ULTIMO_ARRIVATO = "Questa è la tua ordinazione, sei l'ultimo! \n Per concludere, utilizza \"/terminaSessione\"";
     private static final String MESSAGE_SESSION_ERROR = "Questa Sessione non esiste! utilizza \"/sessione\" per crearne una, oppure \"/help\" per ricevere aiuto";
 
-    Stati statoAttuale = Stati.start;
-
-    List<String> piatti = new ArrayList<String>();
-
     public void onUpdateReceived(Update update) {
         if (update.hasMessage() && update.getMessage() != null) {
 
             String message = update.getMessage().getText();
             long chatId = update.getMessage().getChatId();
-            String nickname = update.getMessage().getAuthorSignature();
+            String nickname = update.getMessage().getFrom().getUserName();
+            if(nickname.isEmpty()){
+                nickname = update.getMessage().getFrom().getFirstName() + " " + update.getMessage().getFrom().getLastName();
+            }
+
+            if(!statiPerChat.containsKey(chatId)){
+                statiPerChat.put(chatId,Stati.start);
+            }
+
+            Stati statoAttuale = statiPerChat.get(chatId);
 
             if (statoAttuale == Stati.start && message.equals("/start")) {
                 comandoStart(chatId);
+            } else if (message.equals("/annulla")) {
+                annulla(chatId);
             } else if (statoAttuale == Stati.sessione && StringUtils.isNumeric(message)) {
                 insertSessione(message, chatId, nickname);
             } else if (statoAttuale == Stati.ordine && (StringUtils.isNumeric(message) || Pattern.matches("\\d*[a-z]", message))) {
-                insertOrdini(message);
+                insertOrdini(message, chatId);
             } else if (statoAttuale == Stati.ordine && message.equals("/fine")) {
                 comandoFine(chatId);
+            } else if (statoAttuale == Stati.revisione && message.equals("/statoSessione")) {
+                comandoStatoSessione(chatId);
             }
         }
     }
 
-    private void comandoFine(long chatId) {
-        statoAttuale = Stati.revisione;
+    private void comandoStatoSessione(long chatId) {
         Long idSessione = sessioniInCorso.get(chatId);
+        List<Ordine> ordini = sessioniAttive.get(idSessione).getOrdini();
 
-        //TODO migliorare usando una mappa
-        List<Ordine> ordiniInCorso = sessioniAttive.get(idSessione).getOrdini();
-        for (Ordine ordine : ordiniInCorso) {
-            if (ordine.getChatId().equals(chatId)) {
-                ordine.setPiatti(piatti);
-            }
+        List<String> nicknameNonPronti = new ArrayList<String>();
+        for (Ordine ordine : ordini) {
+            if (!ordine.isReady()){
+            nicknameNonPronti.add(ordine.getNickname());}
         }
 
-        sendOrderList(piatti, chatId);
-        sendMessage(MESSAGE_ATTENDI, chatId);
+        String message = "Utenti non pronti: ";
+        if (nicknameNonPronti.isEmpty()) {
+            sendMessage(MESSAGE_ALL_READY, chatId);
+        } else {
+            for (String nickname : nicknameNonPronti) {
+                message = message + "\n" + nickname;
+            }
+            message = message + "\n" + "Attendi che abbiano ordinato tutti!";
+            sendMessage(message, chatId);
+        }
+
     }
 
-    private void insertOrdini(String message) {
-        piatti.add(message);
+    private void annulla(long chatId) {
+        Long idSessione = sessioniInCorso.get(chatId);
+        piattiPerChat.remove(chatId);
+        statiPerChat.remove(chatId);
+        sessioniAttive.remove(idSessione);
+        sessioniInCorso.remove(chatId);
+
+        sendMessage(MESSAGE_ANNULLA, chatId);
     }
 
     private void comandoStart(long chatId) {
-        statoAttuale = Stati.sessione;
+        statiPerChat.put(chatId,Stati.sessione);
         sendMessage(MESSAGE_START, chatId);
     }
 
     private void insertSessione(String message, long chatId, String nickname) {
-        statoAttuale = Stati.ordine;
+        statiPerChat.put(chatId,Stati.ordine);
         Long idSessione = Long.parseLong(message);
         Ordine nuovoOrdine = creaOrdine(chatId, nickname);
 
@@ -88,7 +114,7 @@ public class SushiOrderBot extends TelegramLongPollingBot {
             //se non esiste, la creo e mi aggiungo
             Sessione nuovaSessione = new Sessione();
             nuovaSessione.setIdSessione(idSessione);
-            nuovaSessione.setOrdini(new ArrayList());
+            nuovaSessione.setOrdini(new ArrayList<Ordine>());
             nuovaSessione.getOrdini().add(nuovoOrdine);
             sessioniAttive.put(idSessione, nuovaSessione);
             //ora l'ordine è registrato, devo ricordarmi di aggiornarlo quando ho terminato l'ordinazione
@@ -116,7 +142,7 @@ public class SushiOrderBot extends TelegramLongPollingBot {
         ordiniOrdinati.putAll(ordiniFinali);
 
         for (Map.Entry<String, Integer> entry : ordiniOrdinati.entrySet()) {
-            response = response + "piatto: " + entry.getKey() + " " + " n° " + entry.getValue() + "\n";
+            response = response + entry.getKey() + " x" + entry.getValue() + "\n";
         }
 
         sendMessage(response, chatId);
@@ -131,11 +157,32 @@ public class SushiOrderBot extends TelegramLongPollingBot {
         return nuovoOrdine;
     }
 
-    public void onUpdatesReceived(List<Update> updates) {
+    private void comandoFine(long chatId) {
+        statiPerChat.put(chatId,Stati.revisione);
+        Long idSessione = sessioniInCorso.get(chatId);
 
-        for (Update update : updates) {
-            onUpdateReceived(update);
+        //TODO migliorare usando una mappa
+        List<Ordine> ordiniInCorso = sessioniAttive.get(idSessione).getOrdini();
+        Ordine[] ordiniArray = ordiniInCorso.toArray(new Ordine[ordiniInCorso.size()]);
+        for(int i = 0; i<ordiniArray.length; i++) {
+            Ordine ordine = ordiniArray[i];
+            if (ordine.getChatId().equals(chatId)) {
+                ordine.setPiatti(piattiPerChat.get(chatId));
+                ordine.setReady(true);
+                sessioniAttive.get(idSessione).getOrdini().add(ordine);
+            }
         }
+
+        sendOrderList(piattiPerChat.get(chatId), chatId);
+        sendMessage(MESSAGE_ATTENDI, chatId);
+    }
+
+    private void insertOrdini(String message, long chatId) {
+        if(!piattiPerChat.containsKey(chatId)){
+            piattiPerChat.put(chatId,new ArrayList<String>());
+        }
+
+        piattiPerChat.get(chatId).add(message);
     }
 
     public void sendMessage(String message, long chatId) {
@@ -144,6 +191,13 @@ public class SushiOrderBot extends TelegramLongPollingBot {
             execute(sendMessage);
         } catch (TelegramApiException e) {
             System.out.println("Errore nell'invio del messaggio");
+        }
+    }
+
+    public void onUpdatesReceived(List<Update> updates) {
+
+        for (Update update : updates) {
+            onUpdateReceived(update);
         }
     }
 
