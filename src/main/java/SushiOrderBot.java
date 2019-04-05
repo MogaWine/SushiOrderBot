@@ -20,10 +20,12 @@ public class SushiOrderBot extends TelegramLongPollingBot {
 
     private static final String MESSAGE_START = "Ciao, sono SushiOrderBot \uD83C\uDF63. \n Ti aiuterò a prendere le ordinazioni! Mettiti d'accordo con gli altri commensali e inserite lo stesso numero di Sessione per iniziare!";
     private static final String MESSAGE_SESSIONE = "Perfetto, ti sei unito alla sessione. Ora puoi iniziare ad inviarmi i piatti che vuoi ordinare. Se ne vuoi più di uno dello stesso tipo, mandamelo più volte! \n Quando hai finito, utilizza il comando \"fine\"";
+    private static final String MESSAGE_ATTENDI = "Questa è la tua ordinazione, attendi che tutti abbiano concluso! \n Per controllare lo stato delle ordinazioni, utilizza \"/statoSessione\"";
+
 
     private static final String MESSAGE_HELP = "";
     private static final String MESSAGE_ERROR = "Utilizza prima un comando! utilizza \"/start\" ";
-    private static final String MESSAGE_ATTENDI = "Questa è la tua ordinazione, attendi che tutti abbiano concluso! Per concludere, utilizza \"/terminaSessione\"";
+    private static final String MESSAGE_ULTIMO_ARRIVATO = "Questa è la tua ordinazione, sei l'ultimo! \n Per concludere, utilizza \"/terminaSessione\"";
     private static final String MESSAGE_SESSION_ERROR = "Questa Sessione non esiste! utilizza \"/sessione\" per crearne una, oppure \"/help\" per ricevere aiuto";
 
     Stati statoAttuale = Stati.start;
@@ -60,6 +62,7 @@ public class SushiOrderBot extends TelegramLongPollingBot {
                 ordine.setPiatti(piatti);
             }
         }
+        sendMessage(MESSAGE_ATTENDI,chatId);
     }
 
     private void insertOrdini(String message, long chatId) {
