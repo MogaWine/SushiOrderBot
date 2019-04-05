@@ -13,12 +13,13 @@ import java.util.regex.Pattern;
 public class SushiOrderBot extends TelegramLongPollingBot {
 
     public static Map<Long, Sessione> sessioniAttive = new HashMap<Long, Sessione>();
+    public static Map<Long, Long> sessioniInCorso = new HashMap<Long, Long>();
 
     private static final String BOT_NAME = "SushiOrderBot";
     private static final String BOT_TOKEN = "871656793:AAEND2Y809PBlWI6oqEMlVeLwaR-uJHeEzQ";
 
     private static final String MESSAGE_START = "Ciao, sono SushiOrderBot \uD83C\uDF63. \n Ti aiuterò a prendere le ordinazioni! Mettiti d'accordo con gli altri commensali e inserite lo stesso numero di Sessione per iniziare!";
-    private static final String MESSAGE_SESSIONE = "Perfetto, ti sei unito alla sessione. Ora puoi iniziare ad inviarmi i piatti che vuoi ordinare. Se ne vuoi più di uno dello stesso tipo, mandamelo più volte!";
+    private static final String MESSAGE_SESSIONE = "Perfetto, ti sei unito alla sessione. Ora puoi iniziare ad inviarmi i piatti che vuoi ordinare. Se ne vuoi più di uno dello stesso tipo, mandamelo più volte! \n Quando hai finito, utilizza il comando \"fine\"";
 
     private static final String MESSAGE_HELP = "";
     private static final String MESSAGE_ERROR = "Utilizza prima un comando! utilizza \"/start\" ";
@@ -27,7 +28,7 @@ public class SushiOrderBot extends TelegramLongPollingBot {
 
     Stati statoAttuale = Stati.start;
 
-    static boolean coso = false;
+    List<String> piatti = new ArrayList<String>();
 
     public void onUpdateReceived(Update update) {
         if (update.hasMessage() && update.getMessage() != null) {
@@ -38,10 +39,25 @@ public class SushiOrderBot extends TelegramLongPollingBot {
 
             if (statoAttuale == Stati.start && message.equals("/start")) {
                 comandoStart(chatId);
-            } else if(statoAttuale == Stati.sessione && StringUtils.isNumeric(message)){
+            } else if (statoAttuale == Stati.sessione && StringUtils.isNumeric(message)) {
                 insertSessione(message, chatId, nickname);
-            } else if(statoAttuale == Stati.ordine && (StringUtils.isNumeric(message) || Pattern.matches("\\d*[a-z]", message))){
+            } else if (statoAttuale == Stati.ordine && (StringUtils.isNumeric(message) || Pattern.matches("\\d*[a-z]", message))) {
                 insertOrdini(message, chatId);
+            } else if (statoAttuale == Stati.ordine && message.equals("/fine")) {
+                comandoFine(chatId);
+            }
+        }
+    }
+
+    private void comandoFine(long chatId) {
+        statoAttuale = Stati.revisione;
+        Long idSessione = sessioniInCorso.get(chatId);
+
+        //TODO migliorare usando una mappa
+        List<Ordine> ordiniInCorso = sessioniAttive.get(idSessione).getOrdini();
+        for (Ordine ordine : ordiniInCorso) {
+            if (ordine.getChatId().equals(chatId)) {
+                ordine.setPiatti(piatti);
             }
         }
     }
@@ -54,6 +70,7 @@ public class SushiOrderBot extends TelegramLongPollingBot {
         statoAttuale = Stati.sessione;
         sendMessage(MESSAGE_START, chatId);
     }
+
     private void insertSessione(String message, long chatId, String nickname) {
         statoAttuale = Stati.ordine;
         Long idSessione = Long.parseLong(message);
@@ -61,7 +78,7 @@ public class SushiOrderBot extends TelegramLongPollingBot {
 
         //controllo se sessione esiste
         //TODO controllo presenza ordine precedente in stessa sessione
-        if(sessioniAttive.containsKey(idSessione)){
+        if (sessioniAttive.containsKey(idSessione)) {
             //se esiste, mi aggiungo
             sessioniAttive.get(idSessione).getOrdini().add(nuovoOrdine);
         } else {
@@ -72,6 +89,9 @@ public class SushiOrderBot extends TelegramLongPollingBot {
             nuovaSessione.getOrdini().add(nuovoOrdine);
             //ora l'ordine è registrato, devo ricordarmi di aggiornarlo quando ho terminato l'ordinazione
         }
+
+        //TODO controllare se già esistente, non so
+        sessioniInCorso.put(chatId, idSessione);
         sendMessage(MESSAGE_SESSIONE, chatId);
     }
 
@@ -90,6 +110,7 @@ public class SushiOrderBot extends TelegramLongPollingBot {
             onUpdateReceived(update);
         }
     }
+
     public void sendMessage(String message, long chatId) {
         SendMessage sendMessage = new SendMessage().setChatId(chatId).setText(message);
         try {
@@ -98,14 +119,16 @@ public class SushiOrderBot extends TelegramLongPollingBot {
             System.out.println("Errore nell'invio del messaggio");
         }
     }
+
     public String getBotUsername() {
         return BOT_NAME;
     }
+
     public String getBotToken() {
         return BOT_TOKEN;
     }
 
-    public enum Stati{
+    public enum Stati {
         start, sessione, ordine, revisione, ok;
     }
 }
