@@ -12,6 +12,8 @@ import java.util.regex.Pattern;
 
 public class SushiOrderBot extends TelegramLongPollingBot {
 
+    public static Map<Long, Sessione> sessioniAttive = new HashMap<Long, Sessione>();
+
     private static final String BOT_NAME = "SushiOrderBot";
     private static final String BOT_TOKEN = "871656793:AAEND2Y809PBlWI6oqEMlVeLwaR-uJHeEzQ";
 
@@ -25,35 +27,61 @@ public class SushiOrderBot extends TelegramLongPollingBot {
 
     Stati statoAttuale = Stati.start;
 
+    static boolean coso = false;
+
     public void onUpdateReceived(Update update) {
         if (update.hasMessage() && update.getMessage() != null) {
 
             String message = update.getMessage().getText();
             long chatId = update.getMessage().getChatId();
+            String nickname = update.getMessage().getAuthorSignature();
 
             if (statoAttuale == Stati.start && message.equals("/start")) {
-                comandoStart(message, chatId);
+                comandoStart(chatId);
             } else if(statoAttuale == Stati.sessione && StringUtils.isNumeric(message)){
-                insertSessione(message, chatId);
+                insertSessione(message, chatId, nickname);
+            } else if(statoAttuale == Stati.ordine && (StringUtils.isNumeric(message) || Pattern.matches("\\d*[a-z]", message))){
+                insertOrdini(message, chatId);
             }
         }
     }
 
-    private void insertSessione(String message, long chatId) {
+    private void insertOrdini(String message, long chatId) {
+
+    }
+
+    private void comandoStart(long chatId) {
+        statoAttuale = Stati.sessione;
+        sendMessage(MESSAGE_START, chatId);
+    }
+    private void insertSessione(String message, long chatId, String nickname) {
         statoAttuale = Stati.ordine;
+        Long idSessione = Long.parseLong(message);
+        Ordine nuovoOrdine = creaOrdine(chatId, nickname);
 
         //controllo se sessione esiste
-
-        //se esiste, mi aggiungo
-
-        //se non esiste, la creo e mi aggiungo
-
+        //TODO controllo presenza ordine precedente in stessa sessione
+        if(sessioniAttive.containsKey(idSessione)){
+            //se esiste, mi aggiungo
+            sessioniAttive.get(idSessione).getOrdini().add(nuovoOrdine);
+        } else {
+            //se non esiste, la creo e mi aggiungo
+            Sessione nuovaSessione = new Sessione();
+            nuovaSessione.setIdSessione(idSessione);
+            nuovaSessione.setOrdini(new ArrayList());
+            nuovaSessione.getOrdini().add(nuovoOrdine);
+            //ora l'ordine è registrato, devo ricordarmi di aggiornarlo quando ho terminato l'ordinazione
+        }
         sendMessage(MESSAGE_SESSIONE, chatId);
     }
 
-    private void comandoStart(String message, long chatId) {
-        statoAttuale = Stati.sessione;
-        sendMessage(MESSAGE_START, chatId);
+    private Ordine creaOrdine(long chatId, String nickname) {
+        Ordine nuovoOrdine = new Ordine();
+        nuovoOrdine.setChatId(chatId);
+        nuovoOrdine.setReady(false);
+        nuovoOrdine.setNickname(nickname);
+        nuovoOrdine.setPiatti(new ArrayList<String>());
+        return nuovoOrdine;
     }
 
     public void onUpdatesReceived(List<Update> updates) {
@@ -75,10 +103,6 @@ public class SushiOrderBot extends TelegramLongPollingBot {
     }
     public String getBotToken() {
         return BOT_TOKEN;
-    }
-
-    public static class Sessioni{
-        public static Map<Long, Sessione> sessioniAttive = new HashMap<Long, Sessione>();
     }
 
     public enum Stati{
