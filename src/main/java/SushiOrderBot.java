@@ -174,7 +174,21 @@ public class SushiOrderBot extends TelegramLongPollingBot {
         }
 
         sendOrderList(piattiPerChat.get(chatId), chatId);
-        sendMessage(MESSAGE_ATTENDI, chatId);
+
+        boolean attesa = false;
+        for(Ordine ordine : sessioniAttive.get(idSessione).getOrdini())
+        {
+            if (!ordine.isReady()){
+                attesa = true;
+                break;
+            }
+        }
+
+        if(attesa){
+            sendMessage(MESSAGE_ATTENDI, chatId);
+        } else {
+            sendMessage(MESSAGE_ALL_READY, chatId);
+        }
     }
 
     private void insertOrdini(String message, long chatId) {
