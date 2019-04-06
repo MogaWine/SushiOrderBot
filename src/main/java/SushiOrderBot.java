@@ -26,10 +26,11 @@ public class SushiOrderBot extends TelegramLongPollingBot {
     private static final String MESSAGE_ANNULLA = "Ordine correttamente eliminato.\nSe vuoi ordinare del Sushi\uD83C\uDF63 utilizza il comando \"/start\"!";
     private static final String MESSAGE_ATTENDI_FINE_SESSIONE = "Devi attendere che tutti abbiano concluso la propria ordinazione, prima di chiudere la sessione!\nUtilissa il comando  \"/statoSessione\" per controllarne lo stato!";
     private static final String MESSAGE_SESSIONE_CHIUSA = "\uD83C\uDF63 \uD83C\uDF63 \uD83C\uDF63 \uD83C\uDF63 \uD83C\uDF63 \nEcco l'ordinazione per tutto il tavolo! \nLa sessione è chiusa, buon appetito!\nEnjoy the \uD83C\uDF63!";
+    private static final String MESSAGE_NESSUN_PIATTO = "Sei a digiuno? Non hai inviato nessun piatto!\nInviami i numeri dei piatti che vuoi ordinare, non essere timido  \uD83C\uDF63.";
+
 
     private static final String MESSAGE_HELP = "";
     private static final String MESSAGE_ERROR = "Utilizza prima un comando! \nIncomincia con \"/start\" ";
-    private static final String MESSAGE_ULTIMO_ARRIVATO = "Questa è la tua ordinazione, sei l'ultimo! \n Per concludere, utilizza \"/terminaSessione\"";
     private static final String MESSAGE_SESSION_ERROR = "Questa Sessione non esiste! utilizza \"/sessione\" per crearne una, oppure \"/help\" per ricevere aiuto";
 
     public void onUpdateReceived(Update update) {
@@ -101,12 +102,10 @@ public class SushiOrderBot extends TelegramLongPollingBot {
             sendOrderList(piattiFinali, chatIds);
             sendMessage(MESSAGE_SESSIONE_CHIUSA, chatIds);
 
-            annulla(chatIds); //TODO c'è da eliminare anche tutti gli altri chatId (a cui devo mandare una notifica)
+            annulla(chatIds);
         }
-        //TODO notifica globale
     }
-
-
+    
     private void comandoStart(long chatId) {
         statiPerChat.put(chatId,Stati.sessione);
         sendMessage(MESSAGE_START, chatId);
@@ -199,6 +198,7 @@ public class SushiOrderBot extends TelegramLongPollingBot {
         //TODO SE PIATTI NULL MESSAGGIO ERRORE
         statiPerChat.put(chatId,Stati.revisione);
         Long idSessione = sessioniInCorso.get(chatId);
+        List<Long> chatIds = new ArrayList<Long>();
 
         //TODO migliorare usando una mappa
         List<Ordine> ordiniInCorso = sessioniAttive.get(idSessione).getOrdini();
@@ -211,7 +211,13 @@ public class SushiOrderBot extends TelegramLongPollingBot {
             }
         }
 
-        sendOrderList(piattiPerChat.get(chatId), chatId);
+        if(!piattiPerChat.isEmpty()) {
+            sendOrderList(piattiPerChat.get(chatId), chatId);
+        } else {
+            sendMessage(MESSAGE_NESSUN_PIATTO, chatId);
+            statiPerChat.put(chatId,Stati.ordine);
+            return;
+        }
 
         boolean attesa = false;
         for(Ordine ordine : sessioniAttive.get(idSessione).getOrdini())
@@ -219,14 +225,15 @@ public class SushiOrderBot extends TelegramLongPollingBot {
             if (!ordine.isReady()){
                 attesa = true;
                 break;
+            } else {
+                chatIds.add(ordine.getChatId());
             }
         }
 
         if(attesa){
             sendMessage(MESSAGE_ATTENDI, chatId);
         } else {
-            //TODO notifica globale
-            sendMessage(MESSAGE_ALL_READY, chatId);
+            sendMessage(MESSAGE_ALL_READY, chatIds);
         }
     }
 
