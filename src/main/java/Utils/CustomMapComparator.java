@@ -11,6 +11,7 @@ public class CustomMapComparator implements Comparator<String> {
             }
         }
 
+        //TODO FIX 123a 1 2 3 123
         @Override
         public int compare(String s1, String s2) {
             Integer i1 = intValue(s1);
