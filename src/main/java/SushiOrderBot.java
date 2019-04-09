@@ -5,7 +5,10 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
@@ -40,12 +43,12 @@ public class SushiOrderBot extends TelegramLongPollingBot {
             String message = update.getMessage().getText();
             long chatId = update.getMessage().getChatId();
             String nickname = update.getMessage().getFrom().getUserName();
-            if(nickname.isEmpty()){
+            if (nickname.isEmpty()) {
                 nickname = update.getMessage().getFrom().getFirstName() + " " + update.getMessage().getFrom().getLastName();
             }
 
-            if(!statiPerChat.containsKey(chatId)){
-                statiPerChat.put(chatId,Stati.start);
+            if (!statiPerChat.containsKey(chatId)) {
+                statiPerChat.put(chatId, Stati.start);
             }
 
             Stati statoAttuale = statiPerChat.get(chatId);
@@ -64,15 +67,15 @@ public class SushiOrderBot extends TelegramLongPollingBot {
                 comandoStatoSessione(chatId);
             } else if (statoAttuale == Stati.revisione && message.equals("/conferma")) {
                 comandoConferma(chatId);
-            } else if(statoAttuale == Stati.revisione && message.equals("/rimuovi")){
+            } else if (statoAttuale == Stati.revisione && message.equals("/rimuovi")) {
                 comandoRimuovi(chatId);
-            } else if(statoAttuale == Stati.revisione && (StringUtils.isNumeric(message) || Pattern.matches("\\d*[a-z]", message))){
+            } else if (statoAttuale == Stati.revisione && (StringUtils.isNumeric(message) || Pattern.matches("\\d*[a-z]", message))) {
                 removeOrdini(chatId, message);
             } else if (statoAttuale == Stati.revisione && message.equals("/fine")) {
                 comandoFineRevisione(chatId);
-            }  else if(statoAttuale == Stati.ok && message.equals("/termina")){
+            } else if (statoAttuale == Stati.ok && message.equals("/termina")) {
                 comandoTerminaSessione(chatId);
-            } else if(statoAttuale != Stati.ordine){
+            } else if (statoAttuale != Stati.ordine) {
                 sendMessage(MESSAGE_ERROR, chatId);
             }
         }
@@ -84,44 +87,28 @@ public class SushiOrderBot extends TelegramLongPollingBot {
 
         List<Ordine> ordiniInCorso = sessioniAttive.get(idSessione).getOrdini();
         Ordine[] ordiniArray = ordiniInCorso.toArray(new Ordine[ordiniInCorso.size()]);
-        for(int i = 0; i<ordiniArray.length; i++) {
+        for (int i = 0; i < ordiniArray.length; i++) {
             Ordine ordine = ordiniArray[i];
             if (ordine.getChatId().equals(chatId)) {
                 ordine.setReady(true);
             }
         }
 
-        boolean attesa = false;
-        for(Ordine ordine : sessioniAttive.get(idSessione).getOrdini())
-        {
-            if (!ordine.isReady()){
-                attesa = true;
-                break;
-            } else {
-                chatIds.add(ordine.getChatId());
-            }
-        }
-
-        if(attesa){
-            sendMessage(MESSAGE_ATTENDI, chatId);
-        } else {
-            sendMessage(MESSAGE_ALL_READY, chatIds);
-        }
-        statiPerChat.put(chatId,Stati.ok);
+        statiPerChat.put(chatId, Stati.ok);
         comandoStatoSessione(chatId);
     }
 
     private void comandoFineRevisione(long chatId) {
 
         //TODO SE PIATTI NULL MESSAGGIO ERRORE
-        statiPerChat.put(chatId,Stati.ok);
+        statiPerChat.put(chatId, Stati.ok);
         Long idSessione = sessioniInCorso.get(chatId);
         List<Long> chatIds = new ArrayList<Long>();
 
         //TODO migliorare usando una mappa
         List<Ordine> ordiniInCorso = sessioniAttive.get(idSessione).getOrdini();
         Ordine[] ordiniArray = ordiniInCorso.toArray(new Ordine[ordiniInCorso.size()]);
-        for(int i = 0; i<ordiniArray.length; i++) {
+        for (int i = 0; i < ordiniArray.length; i++) {
             Ordine ordine = ordiniArray[i];
             if (ordine.getChatId().equals(chatId)) {
                 ordine.setPiatti(piattiPerChat.get(chatId));
@@ -129,18 +116,17 @@ public class SushiOrderBot extends TelegramLongPollingBot {
             }
         }
 
-        if(!piattiPerChat.isEmpty()) {
+        if (!piattiPerChat.isEmpty()) {
             sendOrderList(piattiPerChat.get(chatId), chatId);
         } else {
             sendMessage(MESSAGE_NESSUN_PIATTO, chatId);
-            statiPerChat.put(chatId,Stati.ordine);
+            statiPerChat.put(chatId, Stati.ordine);
             return;
         }
 
         boolean attesa = false;
-        for(Ordine ordine : sessioniAttive.get(idSessione).getOrdini())
-        {
-            if (!ordine.isReady()){
+        for (Ordine ordine : sessioniAttive.get(idSessione).getOrdini()) {
+            if (!ordine.isReady()) {
                 attesa = true;
                 break;
             } else {
@@ -148,7 +134,7 @@ public class SushiOrderBot extends TelegramLongPollingBot {
             }
         }
 
-        if(attesa){
+        if (attesa) {
             sendMessage(MESSAGE_ATTENDI_CONFERMA, chatId);
         } else {
             sendMessage(MESSAGE_ALL_READY, chatIds);
@@ -156,17 +142,17 @@ public class SushiOrderBot extends TelegramLongPollingBot {
     }
 
     private void removeOrdini(long chatId, String message) {
-        if(piattiPerChat.containsKey(chatId) && piattiPerChat.get(chatId).contains(message)) {
+        if (piattiPerChat.containsKey(chatId) && piattiPerChat.get(chatId).contains(message)) {
             piattiPerChat.get(chatId).remove(message);
         }
     }
 
     private void comandoRimuovi(long chatId) {
-        if(!piattiPerChat.isEmpty()) {
+        if (!piattiPerChat.isEmpty()) {
             sendOrderList(piattiPerChat.get(chatId), chatId);
         } else {
             sendMessage(MESSAGE_NESSUN_PIATTO, chatId);
-            statiPerChat.put(chatId,Stati.ordine);
+            statiPerChat.put(chatId, Stati.ordine);
         }
         sendMessage(MESSAGE_RIMUOVI, chatId);
     }
@@ -184,9 +170,9 @@ public class SushiOrderBot extends TelegramLongPollingBot {
         boolean attesa = false;
 
         Ordine[] ordiniArray = listaOrdini.toArray(new Ordine[listaOrdini.size()]);
-        for(int i = 0; i<ordiniArray.length; i++) {
+        for (int i = 0; i < ordiniArray.length; i++) {
             Ordine ordine = ordiniArray[i];
-            if (!ordine.isReady()){
+            if (!ordine.isReady()) {
                 attesa = true;
                 break;
             } else {
@@ -194,10 +180,10 @@ public class SushiOrderBot extends TelegramLongPollingBot {
             }
         }
 
-        if(attesa){
+        if (attesa) {
             sendMessage(MESSAGE_ATTENDI_FINE_SESSIONE, chatId);
         } else {
-            for(Ordine ordineFinale : ordiniFinali){
+            for (Ordine ordineFinale : ordiniFinali) {
                 piattiFinali.addAll(ordineFinale.getPiatti());
                 chatIds.add(ordineFinale.getChatId());
             }
@@ -207,14 +193,14 @@ public class SushiOrderBot extends TelegramLongPollingBot {
             annulla(chatIds);
         }
     }
-    
+
     private void comandoStart(long chatId) {
-        statiPerChat.put(chatId,Stati.sessione);
+        statiPerChat.put(chatId, Stati.sessione);
         sendMessage(MESSAGE_START, chatId);
     }
 
     private void insertSessione(String message, long chatId, String nickname) {
-        statiPerChat.put(chatId,Stati.ordine);
+        statiPerChat.put(chatId, Stati.ordine);
         Long idSessione = Long.parseLong(message);
         Ordine nuovoOrdine = creaOrdine(chatId, nickname);
 
@@ -283,7 +269,7 @@ public class SushiOrderBot extends TelegramLongPollingBot {
             response = response + entry.getKey() + " x" + entry.getValue() + "\n";
         }
 
-        for(Long chatId : chatIds){
+        for (Long chatId : chatIds) {
             statiPerChat.put(chatId, Stati.ok);
         }
         sendMessage(response, chatIds);
@@ -301,14 +287,14 @@ public class SushiOrderBot extends TelegramLongPollingBot {
     private void comandoFine(long chatId) {
 
         //TODO SE PIATTI NULL MESSAGGIO ERRORE
-        statiPerChat.put(chatId,Stati.revisione);
+        statiPerChat.put(chatId, Stati.revisione);
         Long idSessione = sessioniInCorso.get(chatId);
         List<Long> chatIds = new ArrayList<Long>();
 
         //TODO migliorare usando una mappa
         List<Ordine> ordiniInCorso = sessioniAttive.get(idSessione).getOrdini();
         Ordine[] ordiniArray = ordiniInCorso.toArray(new Ordine[ordiniInCorso.size()]);
-        for(int i = 0; i<ordiniArray.length; i++) {
+        for (int i = 0; i < ordiniArray.length; i++) {
             Ordine ordine = ordiniArray[i];
             if (ordine.getChatId().equals(chatId)) {
                 ordine.setPiatti(piattiPerChat.get(chatId));
@@ -316,18 +302,17 @@ public class SushiOrderBot extends TelegramLongPollingBot {
             }
         }
 
-        if(!piattiPerChat.isEmpty()) {
+        if (!piattiPerChat.isEmpty()) {
             sendOrderList(piattiPerChat.get(chatId), chatId);
         } else {
             sendMessage(MESSAGE_NESSUN_PIATTO, chatId);
-            statiPerChat.put(chatId,Stati.ordine);
+            statiPerChat.put(chatId, Stati.ordine);
             return;
         }
 
         boolean attesa = false;
-        for(Ordine ordine : sessioniAttive.get(idSessione).getOrdini())
-        {
-            if (!ordine.isReady()){
+        for (Ordine ordine : sessioniAttive.get(idSessione).getOrdini()) {
+            if (!ordine.isReady()) {
                 attesa = true;
                 break;
             } else {
@@ -345,8 +330,8 @@ public class SushiOrderBot extends TelegramLongPollingBot {
     }
 
     private void insertOrdini(String message, long chatId) {
-        if(!piattiPerChat.containsKey(chatId)){
-            piattiPerChat.put(chatId,new ArrayList<String>());
+        if (!piattiPerChat.containsKey(chatId)) {
+            piattiPerChat.put(chatId, new ArrayList<String>());
         }
 
         piattiPerChat.get(chatId).add(message);
@@ -358,8 +343,9 @@ public class SushiOrderBot extends TelegramLongPollingBot {
 
         List<String> nicknameNonPronti = new ArrayList<String>();
         for (Ordine ordine : ordini) {
-            if (!ordine.isReady()){
-                nicknameNonPronti.add(ordine.getNickname());}
+            if (!ordine.isReady()) {
+                nicknameNonPronti.add(ordine.getNickname());
+            }
         }
 
         String message = "Utenti non pronti: ";
@@ -387,7 +373,7 @@ public class SushiOrderBot extends TelegramLongPollingBot {
     }
 
     private void annulla(List<Long> chatIds) {
-        for(Long chatId : chatIds) {
+        for (Long chatId : chatIds) {
             Long idSessione = sessioniInCorso.get(chatId);
             piattiPerChat.remove(chatId);
             statiPerChat.remove(chatId);
@@ -409,7 +395,7 @@ public class SushiOrderBot extends TelegramLongPollingBot {
 
     public void sendMessage(String message, List<Long> chatIds) {
 
-        for(long chatId : chatIds) {
+        for (long chatId : chatIds) {
             SendMessage sendMessage = new SendMessage().setChatId(chatId).setText(message);
             try {
                 execute(sendMessage);
