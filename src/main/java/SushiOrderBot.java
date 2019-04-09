@@ -72,13 +72,41 @@ public class SushiOrderBot extends TelegramLongPollingBot {
                 comandoFineRevisione(chatId);
             }  else if(statoAttuale == Stati.ok && message.equals("/termina")){
                 comandoTerminaSessione(chatId);
-            } else {
+            } else if(statoAttuale != Stati.ordine){
                 sendMessage(MESSAGE_ERROR, chatId);
             }
         }
     }
 
     private void comandoConferma(long chatId) {
+        Long idSessione = sessioniInCorso.get(chatId);
+        List<Long> chatIds = new ArrayList<Long>();
+
+        List<Ordine> ordiniInCorso = sessioniAttive.get(idSessione).getOrdini();
+        Ordine[] ordiniArray = ordiniInCorso.toArray(new Ordine[ordiniInCorso.size()]);
+        for(int i = 0; i<ordiniArray.length; i++) {
+            Ordine ordine = ordiniArray[i];
+            if (ordine.getChatId().equals(chatId)) {
+                ordine.setReady(true);
+            }
+        }
+
+        boolean attesa = false;
+        for(Ordine ordine : sessioniAttive.get(idSessione).getOrdini())
+        {
+            if (!ordine.isReady()){
+                attesa = true;
+                break;
+            } else {
+                chatIds.add(ordine.getChatId());
+            }
+        }
+
+        if(attesa){
+            sendMessage(MESSAGE_ATTENDI, chatId);
+        } else {
+            sendMessage(MESSAGE_ALL_READY, chatIds);
+        }
         statiPerChat.put(chatId,Stati.ok);
         comandoStatoSessione(chatId);
     }
@@ -255,6 +283,9 @@ public class SushiOrderBot extends TelegramLongPollingBot {
             response = response + entry.getKey() + " x" + entry.getValue() + "\n";
         }
 
+        for(Long chatId : chatIds){
+            statiPerChat.put(chatId, Stati.ok);
+        }
         sendMessage(response, chatIds);
     }
 
@@ -281,7 +312,7 @@ public class SushiOrderBot extends TelegramLongPollingBot {
             Ordine ordine = ordiniArray[i];
             if (ordine.getChatId().equals(chatId)) {
                 ordine.setPiatti(piattiPerChat.get(chatId));
-                ordine.setReady(true);
+//                ordine.setReady(true);
             }
         }
 
@@ -304,11 +335,13 @@ public class SushiOrderBot extends TelegramLongPollingBot {
             }
         }
 
-        if(attesa){
-            sendMessage(MESSAGE_ATTENDI_CONFERMA, chatId);
-        } else {
-            sendMessage(MESSAGE_ALL_READY, chatIds);
-        }
+//        if(attesa){
+//            sendMessage(MESSAGE_ATTENDI_CONFERMA, chatId);
+//        } else {
+//            sendMessage(MESSAGE_ALL_READY, chatIds);
+//        }
+
+        sendMessage(MESSAGE_ATTENDI_CONFERMA, chatId);
     }
 
     private void insertOrdini(String message, long chatId) {
