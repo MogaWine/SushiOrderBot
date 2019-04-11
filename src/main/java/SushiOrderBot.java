@@ -30,7 +30,7 @@ public class SushiOrderBot extends TelegramLongPollingBot {
     private static final String MESSAGE_ALL_READY = "siamo tutti pronti!\nutilizza il comando /termina per terminare le ordinazioni e ricevere il menù completo";
     private static final String MESSAGE_ANNULLA = "ordine correttamente eliminato\nse vuoi ordinare del Sushi \uD83C\uDF63 utilizza il comando /start";
     private static final String MESSAGE_ATTENDI_FINE_SESSIONE = "devi attendere che tutti abbiano concluso la propria ordinazione prima di chiudere la sessione!\nutilizza il comando  /stato per controllare chi manca";
-    private static final String MESSAGE_SESSIONE_CHIUSA = "\uD83C\uDF63 \uD83C\uDF63 \uD83C\uDF63 \uD83C\uDF63 \uD83C\uDF63 \uD83C\uDF63 \uD83C\uDF63 \necco l'ordine per il vostro tavolo\nEnjoy the \uD83C\uDF63!";
+    private static final String MESSAGE_SESSIONE_CHIUSA = "Enjoy the \uD83C\uDF63!";
     private static final String MESSAGE_NESSUN_PIATTO = "sei a digiuno?\n non hai inviato nessun piatto!\ninviami i numeri dei piatti che vuoi ordinare, non essere timido  \uD83C\uDF63.";
     private static final String MESSAGE_RIMUOVI = "questo è il tuo ordine attuale\nmandami i numeri dei piatti che vuoi eliminare, uno alla volta\nquando hai finito usa il comando /fine";
     private static final String MESSAGE_CREA_PASSWORD = "la sessione è disponibile\nInserisci una password per l'accesso alla sessione e comunicala agli altri commensali";
@@ -237,8 +237,9 @@ public class SushiOrderBot extends TelegramLongPollingBot {
             sendOrderList(piattiFinali, chatIds);
             sendMessage(MESSAGE_SESSIONE_CHIUSA, chatIds);
 
-            annulla(chatIds);
-        }
+
+        }            annulla(chatIds);
+
     }
 
     private void comandoStart(long chatId) {
@@ -247,7 +248,7 @@ public class SushiOrderBot extends TelegramLongPollingBot {
     }
 
     private void sendOrderList(List<String> piatti, long chatId) {
-        String response = "";
+        String response = "\uD83C\uDF63 \uD83C\uDF63 \uD83C\uDF63 IL TUO ORDINE \uD83C\uDF63 \uD83C\uDF63 \uD83C\uDF63\n";
 
         Map<String, Integer> ordiniFinali = new TreeMap<String, Integer>();
         for (String piatto : piatti) {
@@ -270,7 +271,7 @@ public class SushiOrderBot extends TelegramLongPollingBot {
     }
 
     private void sendOrderList(List<String> piatti, List<Long> chatIds) {
-        String response = "";
+        String response = "\uD83C\uDF63 \uD83C\uDF63 \uD83C\uDF63 ORDINE DEL TAVOLO \uD83C\uDF63 \uD83C\uDF63 \uD83C\uDF63\n";
 
         Map<String, Integer> ordiniFinali = new TreeMap<String, Integer>();
         for (String piatto : piatti) {
@@ -412,8 +413,6 @@ public class SushiOrderBot extends TelegramLongPollingBot {
                 if (sessioniInCorso.containsKey(chatId))
                     sessioniInCorso.remove(chatId);
             }
-
-            sendMessage(MESSAGE_ANNULLA, chatId);
         }
     }
 
