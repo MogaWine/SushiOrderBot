@@ -23,20 +23,20 @@ public class SushiOrderBot extends TelegramLongPollingBot {
     private static final String BOT_NAME = "SushiOrderBot";
     private static final String BOT_TOKEN = "871656793:AAEND2Y809PBlWI6oqEMlVeLwaR-uJHeEzQ";
 
-    private static final String MESSAGE_START = "Ciao, sono SushiOrderBot \uD83C\uDF63. \nTi aiuterò a prendere le ordinazioni! Mettiti d'accordo con gli altri commensali e inserite lo stesso numero di Sessione per iniziare!";
-    private static final String MESSAGE_SESSIONE = "Perfetto, ti sei unito alla sessione. Ora puoi iniziare ad inviarmi i piatti che vuoi ordinare. \nInviami solo il numero! (Per esempio: se nel menù il Nighiri di salmone è il numero 10, inviamo solo il numero 10)\nSe ne vuoi più di uno dello stesso tipo, mandamelo più volte! \nQuando hai finito, utilizza il comando \"/fine\"";
-    private static final String MESSAGE_ATTENDI_CONFERMA = "Questa è la tua ordinazione, utilizza il comando \"/conferma\" se è tutto ok, altrimenti usa il comando \"/rimuovi\" per rimuovere piatti!";
-    private static final String MESSAGE_ATTENDI = "Attendi che tutti abbiano concluso! \nPer controllare lo stato delle ordinazioni, utilizza \"/stato\"";
-    private static final String MESSAGE_ALL_READY = "Tutti gli utenti sono pronti!\nUtilizza il comando \"/termina\" per terminare le ordinazioni e ricevere il menù completo";
-    private static final String MESSAGE_ANNULLA = "Ordine correttamente eliminato.\nSe vuoi ordinare del Sushi\uD83C\uDF63 utilizza il comando \"/start\"!";
-    private static final String MESSAGE_ATTENDI_FINE_SESSIONE = "Devi attendere che tutti abbiano concluso la propria ordinazione, prima di chiudere la sessione!\nUtilizza il comando  \"/stato\" per controllarne lo stato!";
-    private static final String MESSAGE_SESSIONE_CHIUSA = "\uD83C\uDF63 \uD83C\uDF63 \uD83C\uDF63 \uD83C\uDF63 \uD83C\uDF63 \nEcco l'ordinazione per tutto il tavolo! \nLa sessione è chiusa, buon appetito!\nEnjoy the \uD83C\uDF63!";
-    private static final String MESSAGE_NESSUN_PIATTO = "Sei a digiuno? Non hai inviato nessun piatto!\nInviami i numeri dei piatti che vuoi ordinare, non essere timido  \uD83C\uDF63.";
-    private static final String MESSAGE_RIMUOVI = "Mandami i numeri dei piatti che vuoi eliminare, uno alla volta.\nQuando hai finito usa il comando \"/fine\"";
-    private static final String MESSAGE_CREA_PASSWORD = "La sessione è disponibile\nInserisci una password per l'accesso alla sessione e comunicala agli altri commensali";
-    private static final String MESSAGE_INSERISCI_PASSWORD = "C'è una sessione in corso, utilizza la password per accedervi";
-    private static final String MESSAGE_PASSWORD_SBAGLIATA = "La password inserita è errata\ninserisci la password corretta";
-    private static final String MESSAGE_ERROR = "Utilizza prima un comando! \nIncomincia con \"/start\", se sei bloccato usa /annulla ";
+    private static final String MESSAGE_START = "ciao, sono SushiOrderBot \uD83C\uDF63\nti aiuterò ad aggregare le ordinazioni di tutto il tavolo!\nmettiti d'accordo con gli altri commensali e inserite lo stesso numero di sessione per iniziare";
+    private static final String MESSAGE_SESSIONE = "ti sei unito alla sessione\ninizia ad inviarmi i tuoi ordini\ninviami solo il numero! (Per esempio: se nel menù il Nigiri di salmone è il numero 10, inviamo solo il numero 10)\nse ne vuoi più di uno dello stesso tipo, mandami il suo numero più volte\nquando hai finito, utilizza il comando /fine";
+    private static final String MESSAGE_ATTENDI_CONFERMA = "Questa è la tua ordinazione\nutilizza il comando /conferma se è tutto ok, altrimenti usa il comando /rimuovi per rimuovere piatti";
+    private static final String MESSAGE_ATTENDI = "non tutti i partecipanti sono pronti ad ordinare\nper controllare lo stato delle ordinazioni, utilizza /stato";
+    private static final String MESSAGE_ALL_READY = "siamo tutti pronti!\nutilizza il comando /termina per terminare le ordinazioni e ricevere il menù completo";
+    private static final String MESSAGE_ANNULLA = "ordine correttamente eliminato\nse vuoi ordinare del Sushi \uD83C\uDF63 utilizza il comando /start";
+    private static final String MESSAGE_ATTENDI_FINE_SESSIONE = "devi attendere che tutti abbiano concluso la propria ordinazione prima di chiudere la sessione!\nutilizza il comando  /stato per controllare chi manca";
+    private static final String MESSAGE_SESSIONE_CHIUSA = "\uD83C\uDF63 \uD83C\uDF63 \uD83C\uDF63 \uD83C\uDF63 \uD83C\uDF63 \uD83C\uDF63 \uD83C\uDF63 \necco l'ordine per il vostro tavolo\nEnjoy the \uD83C\uDF63!";
+    private static final String MESSAGE_NESSUN_PIATTO = "sei a digiuno?\n non hai inviato nessun piatto!\ninviami i numeri dei piatti che vuoi ordinare, non essere timido  \uD83C\uDF63.";
+    private static final String MESSAGE_RIMUOVI = "questo è il tuo ordine attuale\nmandami i numeri dei piatti che vuoi eliminare, uno alla volta\nquando hai finito usa il comando /fine";
+    private static final String MESSAGE_CREA_PASSWORD = "la sessione è disponibile\nInserisci una password per l'accesso alla sessione e comunicala agli altri commensali";
+    private static final String MESSAGE_INSERISCI_PASSWORD = "c'è una sessione in corso, inviami la password per accedervi";
+    private static final String MESSAGE_PASSWORD_SBAGLIATA = "la password inserita è errata\ninserisci la password corretta";
+    private static final String MESSAGE_ERROR = "utilizza prima un comando!\nincomincia con /start, se sei bloccato usa /annulla ";
 
     public void onUpdateReceived(Update update) {
         if (update.hasMessage() && update.getMessage() != null) {
@@ -382,23 +382,36 @@ public class SushiOrderBot extends TelegramLongPollingBot {
     }
 
     private void annulla(long chatId) {
-        //TODO pullare da remoto
-        Long idSessione = sessioniInCorso.get(chatId);
-        piattiPerChat.remove(chatId);
-        statiPerChat.remove(chatId);
-        sessioniAttive.remove(idSessione);
-        sessioniInCorso.remove(chatId);
+        if (sessioniInCorso.containsKey(chatId)) {
+            Long idSessione = sessioniInCorso.get(chatId);
+
+            if (piattiPerChat.containsKey(chatId))
+                piattiPerChat.remove(chatId);
+            if (statiPerChat.containsKey(chatId))
+                statiPerChat.remove(chatId);
+            if (sessioniAttive.containsKey(chatId))
+                sessioniAttive.remove(idSessione);
+            if (sessioniInCorso.containsKey(chatId))
+                sessioniInCorso.remove(chatId);
+        }
 
         sendMessage(MESSAGE_ANNULLA, chatId);
     }
 
     private void annulla(List<Long> chatIds) {
         for (Long chatId : chatIds) {
-            Long idSessione = sessioniInCorso.get(chatId);
-            piattiPerChat.remove(chatId);
-            statiPerChat.remove(chatId);
-            sessioniAttive.remove(idSessione);
-            sessioniInCorso.remove(chatId);
+            if (sessioniInCorso.containsKey(chatId)) {
+                Long idSessione = sessioniInCorso.get(chatId);
+
+                if (piattiPerChat.containsKey(chatId))
+                    piattiPerChat.remove(chatId);
+                if (statiPerChat.containsKey(chatId))
+                    statiPerChat.remove(chatId);
+                if (sessioniAttive.containsKey(chatId))
+                    sessioniAttive.remove(idSessione);
+                if (sessioniInCorso.containsKey(chatId))
+                    sessioniInCorso.remove(chatId);
+            }
 
             sendMessage(MESSAGE_ANNULLA, chatId);
         }
