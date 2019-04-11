@@ -16,6 +16,7 @@ public class SushiOrderBot extends TelegramLongPollingBot {
 
     private static Map<Long, Sessione> sessioniAttive = new ConcurrentHashMap<Long, Sessione>();
     private static Map<Long, Long> sessioniInCorso = new ConcurrentHashMap<Long, Long>();
+    private static Map<Long, Long> sessioniPassword = new ConcurrentHashMap<Long, Long>();
     private static Map<Long, Stati> statiPerChat = new ConcurrentHashMap<Long, Stati>();
     private static Map<Long, List<String>> piattiPerChat = new ConcurrentHashMap<Long, List<String>>();
 
@@ -32,10 +33,10 @@ public class SushiOrderBot extends TelegramLongPollingBot {
     private static final String MESSAGE_SESSIONE_CHIUSA = "\uD83C\uDF63 \uD83C\uDF63 \uD83C\uDF63 \uD83C\uDF63 \uD83C\uDF63 \nEcco l'ordinazione per tutto il tavolo! \nLa sessione è chiusa, buon appetito!\nEnjoy the \uD83C\uDF63!";
     private static final String MESSAGE_NESSUN_PIATTO = "Sei a digiuno? Non hai inviato nessun piatto!\nInviami i numeri dei piatti che vuoi ordinare, non essere timido  \uD83C\uDF63.";
     private static final String MESSAGE_RIMUOVI = "Mandami i numeri dei piatti che vuoi eliminare, uno alla volta.\nQuando hai finito usa il comando \"/fine\"";
-
-    private static final String MESSAGE_HELP = "";
+    private static final String MESSAGE_CREA_PASSWORD = "La sessione è disponibile\nInserisci una password per l'accesso alla sessione e comunicala agli altri commensali";
+    private static final String MESSAGE_INSERISCI_PASSWORD = "C'è una sessione in corso, utilizza la password per accedervi";
+    private static final String MESSAGE_PASSWORD_SBAGLIATA = "La password inserita è errata\ninserisci la password corretta";
     private static final String MESSAGE_ERROR = "Utilizza prima un comando! \nIncomincia con \"/start\", se sei bloccato usa /annulla ";
-    private static final String MESSAGE_SESSION_ERROR = "Questa Sessione non esiste! utilizza \"/sessione\" per crearne una, oppure \"/help\" per ricevere aiuto";
 
     public void onUpdateReceived(Update update) {
         if (update.hasMessage() && update.getMessage() != null) {
@@ -59,6 +60,8 @@ public class SushiOrderBot extends TelegramLongPollingBot {
                 annulla(chatId);
             } else if (statoAttuale == Stati.sessione && StringUtils.isNumeric(message)) {
                 insertSessione(message, chatId, nickname);
+            } else if (statoAttuale == Stati.inserisciPassword || statoAttuale == Stati.creaPassword) {
+                insertPassword(message, chatId, nickname);
             } else if (statoAttuale == Stati.ordine && (StringUtils.isNumeric(message) || Pattern.matches("\\d*[a-z]", message))) {
                 insertOrdini(message, chatId);
             } else if (statoAttuale == Stati.ordine && message.equals("/fine")) {
@@ -80,6 +83,50 @@ public class SushiOrderBot extends TelegramLongPollingBot {
             }
         }
     }
+
+    private void insertPassword(String password, long chatId, String nickname) {
+
+        Ordine nuovoOrdine = creaOrdine(chatId, nickname);
+        Long idSessione = sessioniPassword.get(chatId);
+
+        if (statiPerChat.get(chatId).equals(Stati.creaPassword)) {
+            sessioniAttive.get(idSessione).setPassword(password);
+            sessioniAttive.get(idSessione).getOrdini().add(nuovoOrdine);
+            sessioniInCorso.put(chatId, idSessione);
+            statiPerChat.put(chatId, Stati.ordine);
+            sendMessage(MESSAGE_SESSIONE, chatId);
+        } else {
+            if ((sessioniAttive.get(idSessione).getPassword().equals(password))) {
+                sessioniAttive.get(idSessione).getOrdini().add(nuovoOrdine);
+                sessioniInCorso.put(chatId, idSessione);
+                statiPerChat.put(chatId, Stati.ordine);
+                sendMessage(MESSAGE_SESSIONE, chatId);
+            } else {
+                sendMessage(MESSAGE_PASSWORD_SBAGLIATA, chatId);
+            }
+        }
+    }
+
+    private void insertSessione(String message, long chatId, String nickname) {
+
+        Long idSessione = Long.parseLong(message);
+        sessioniPassword.put(chatId, idSessione);
+
+        if (sessioniAttive.containsKey(idSessione)) {
+            statiPerChat.put(chatId, Stati.inserisciPassword);
+            sendMessage(MESSAGE_INSERISCI_PASSWORD, chatId);
+        } else {
+            statiPerChat.put(chatId, Stati.creaPassword);
+
+            Sessione nuovaSessione = new Sessione();
+            nuovaSessione.setIdSessione(idSessione);
+            sessioniAttive.put(idSessione, nuovaSessione);
+            sessioniAttive.get(idSessione).setOrdini(new ArrayList<Ordine>());
+
+            sendMessage(MESSAGE_CREA_PASSWORD, chatId);
+        }
+    }
+
 
     private void comandoConferma(long chatId) {
         Long idSessione = sessioniInCorso.get(chatId);
@@ -197,33 +244,6 @@ public class SushiOrderBot extends TelegramLongPollingBot {
     private void comandoStart(long chatId) {
         statiPerChat.put(chatId, Stati.sessione);
         sendMessage(MESSAGE_START, chatId);
-    }
-
-    private void insertSessione(String message, long chatId, String nickname) {
-        statiPerChat.put(chatId, Stati.ordine);
-        Long idSessione = Long.parseLong(message);
-        Ordine nuovoOrdine = creaOrdine(chatId, nickname);
-
-        //controllo se sessione esiste
-        //TODO controllo presenza ordine precedente in stessa sessione
-        if (sessioniAttive.containsKey(idSessione)) {
-            //se esiste, mi aggiungo
-            sessioniAttive.get(idSessione).getOrdini().add(nuovoOrdine);
-        } else {
-            //se non esiste, la creo e mi aggiungo
-            Sessione nuovaSessione = new Sessione();
-            nuovaSessione.setIdSessione(idSessione);
-            nuovaSessione.setOrdini(new ArrayList<Ordine>());
-            nuovaSessione.getOrdini().add(nuovoOrdine);
-            sessioniAttive.put(idSessione, nuovaSessione);
-            //ora l'ordine è registrato, devo ricordarmi di aggiornarlo quando ho terminato l'ordinazione
-        }
-
-        //TODO controllare se già esistente, non so
-        sessioniInCorso.put(chatId, idSessione);
-        sendMessage(MESSAGE_SESSIONE, chatId);
-
-        //TODO c'è da implementare sicurezza con password
     }
 
     private void sendOrderList(List<String> piatti, long chatId) {
@@ -421,7 +441,7 @@ public class SushiOrderBot extends TelegramLongPollingBot {
     }
 
     public enum Stati {
-        start, sessione, ordine, revisione, ok;
+        start, sessione, creaPassword, inserisciPassword, ordine, revisione, ok;
     }
 }
 
